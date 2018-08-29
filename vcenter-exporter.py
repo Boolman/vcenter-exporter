@@ -455,6 +455,12 @@ class VcenterExporter():
         self.metric_count = 0
         logging.debug('get clusters from content')
 
+        logging.debug('removing old metrics')
+        # Need list of keys becuase we can't iterate through dict and change size
+        old_metric_list = [x for x in self.gauge['vcenter_vcenter_node_info']._metrics.keys()]
+        for x in old_metric_list:
+            self.gauge['vcenter_vcenter_node_info']._metrics.pop(x)
+
         logging.debug(self.configs['main']['vcenter_host'] +
                       ": " + self.content.about.version)
         self.gauge['vcenter_vcenter_node_info'].labels(self.configs['main']['vcenter_host'],
@@ -468,6 +474,12 @@ class VcenterExporter():
                                     vim.HostSystem, self.host_properties, True)
         for host in host_data:
             try:
+                logging.debug('removing old metrics')
+                # Need list of keys becuase we can't iterate through dict and change size
+                old_metric_list = [x for x in self.gauge['vcenter_esx_node_info']._metrics.keys()]
+                for x in old_metric_list:
+                    self.gauge['vcenter_esx_node_info']._metrics.pop(x)
+
                 logging.debug(host['summary.config.name'] + ": " +
                                 host['config.product.version'])
                 self.gauge['vcenter_esx_node_info'].labels(host['summary.config.name'],
@@ -505,18 +517,22 @@ class VcenterExporter():
         session_keys_current = [x.key for x in current_sessions]
         session_keys_in_dict = self.sessions_dict.keys()
 
+        # Need to gather keys becuase we can't iterate through dict and remove items at the same time
+        remove_keys=[]
         for key in session_keys_in_dict:
                 if not key in session_keys_current:
-                    try:
-                        remove_data = self.sessions_dict.pop(key)
-                        self.gauge['vcenter_vcenter_api_session_info'].remove(key[0:8], 
-                            self.configs['main']['host'],
-                            remove_data['userName'], 
-                            remove_data['ipAddress'],
-                            remove_data['userAgent']
-                        )
-                    except Exception as e:
-                        logging.debug('Error removing gauge: ' + str(e))
+                    remove_keys.append(key)
+        for key in remove_keys:
+            try:
+                remove_data = self.sessions_dict.pop(key)
+                self.gauge['vcenter_vcenter_api_session_info'].remove(key[0:8], 
+                    self.configs['main']['host'],
+                    remove_data['userName'], 
+                    remove_data['ipAddress'],
+                    remove_data['userAgent']
+                )
+            except Exception as e:
+                logging.debug('Error removing gauge: ' + str(e))
 
         logging.debug('processing api session information')
         for session in self.sessions_dict:
