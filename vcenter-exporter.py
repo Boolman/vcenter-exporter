@@ -455,7 +455,7 @@ class VcenterExporter():
         self.metric_count = 0
         logging.debug('get clusters from content')
 
-        logging.debug('removing old metrics')
+        logging.debug('removing old vcenter metrics')
         # Need list of keys becuase we can't iterate through dict and change size
         old_metric_list = [x for x in self.gauge['vcenter_vcenter_node_info']._metrics.keys()]
         for x in old_metric_list:
@@ -468,18 +468,18 @@ class VcenterExporter():
                                                        self.content.about.build, region).set(1)
         self.metric_count += 1
 
+        logging.debug('removing old esx metrics')
+        # Need list of keys becuase we can't iterate through dict and change size
+        old_metric_list = [x for x in self.gauge['vcenter_esx_node_info']._metrics.keys()]
+        for x in old_metric_list:
+            self.gauge['vcenter_esx_node_info']._metrics.pop(x)
+
         logging.debug('get version information for each esx host')
 
         host_data = collect_properties(self.si, self.hosts,
                                     vim.HostSystem, self.host_properties, True)
         for host in host_data:
             try:
-                logging.debug('removing old metrics')
-                # Need list of keys becuase we can't iterate through dict and change size
-                old_metric_list = [x for x in self.gauge['vcenter_esx_node_info']._metrics.keys()]
-                for x in old_metric_list:
-                    self.gauge['vcenter_esx_node_info']._metrics.pop(x)
-
                 logging.debug(host['summary.config.name'] + ": " +
                                 host['config.product.version'])
                 self.gauge['vcenter_esx_node_info'].labels(host['summary.config.name'],
