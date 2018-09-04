@@ -14,11 +14,7 @@ def connect_to_vcenter(host, user, pwd, port, context):
             sslContext=context)
 
     except IOError as e:
-        logging.error("Could not connect to vcenter." + str(e))
-
-    if not si:
-        raise SystemExit("Unable to connect to host with supplied info.")
-    return si
+        raise SystemExit("Unable to connect to host with supplied info. Error %s: " % str(e))
 
 # Shamelessly borrowed from:
 # https://github.com/dnaeon/py-vconnector/blob/master/src/vconnector/core.py
