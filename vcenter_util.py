@@ -16,6 +16,8 @@ def connect_to_vcenter(host, user, pwd, port, context):
     except IOError as e:
         raise SystemExit("Unable to connect to host with supplied info. Error %s: " % str(e))
 
+    return si
+
 # Shamelessly borrowed from:
 # https://github.com/dnaeon/py-vconnector/blob/master/src/vconnector/core.py
 def collect_properties(service_instance, view_ref, obj_type, path_set=None,
