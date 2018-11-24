@@ -155,7 +155,7 @@ class VcenterExporter():
             # vc_gauge = 'vcenter_' + full_name.replace('.', '_')
             vc_gauge = 'vcenter_' + counter_id.replace('.', '_')
             self.gauge[vc_gauge] = Gauge(vc_gauge, vc_gauge, [
-                'vmware_name', 'project_id', 'vcenter_name', 'vcenter_node',
+                'vmware_name', 'vcenter_name', 'vcenter_node',
                 'instance_uuid', 'guest_id', 'datastore', 'metric_detail'
             ])
 
@@ -262,10 +262,7 @@ class VcenterExporter():
         for item in data:
 
             try:
-                if (item["runtime.powerState"] == "poweredOn" and
-                        self.regexs['openstack_match_regex'].match(item["config.annotation"]) and
-                        'production' in item["runtime.host"].parent.name
-                        ) and not self.regexs['ignore_vm_match_regex'].match(item["config.name"]):
+                if item["runtime.powerState"] == "poweredOn" and not self.regexs['ignore_vm_match_regex'].match(item["config.name"]):
                     logging.debug('current vm processed - ' +
                                   item["config.name"])
                     logging.debug('==> running on vcenter node: ' +
@@ -282,9 +279,12 @@ class VcenterExporter():
                     ]
 
                     # the filter is for filtering out empty lines
-                    annotations = dict(
-                        s.split(':', 1)
-                        for s in filter(None, annotation_lines))
+                    #annotations = dict(
+                    #    s.split(':', 1)
+                    #    for s in filter(None, annotation_lines))
+                    annotations = dict()
+                    annotations['name'] = item["config.name"]
+
 
                     # datastore name
                     datastore = item["summary.config.vmPathName"].split('[', 1)[1].split(']')[
@@ -337,7 +337,7 @@ class VcenterExporter():
                                                                  .index(val.id.counterId)]
                                        .replace('.', '_')].labels(
                                            annotations['name'],
-                                           annotations['projectid'], self.datacentername,
+                                           self.datacentername,
                                            self.regexs['name_shortening_regex'].sub(
                                                '',
                                                item["runtime.host"].name),

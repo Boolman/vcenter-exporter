@@ -5,7 +5,11 @@ MAINTAINER Thomas Graichen, thomas.graichen@sap.com
 RUN pip install yamlconfig argparse pyVmomi prometheus-client
 
 RUN mkdir /vcenter-exporter
+
+WORKDIR /vcenter-exporter
+
 ADD vcenter_util.py /vcenter-exporter/vcenter_util.py
 ADD __init__.py /vcenter-exporter/__init__.py
 ADD vcenter-exporter.py /vcenter-exporter/vcenter-exporter.py
 ADD config.yaml /vcenter-exporter/config.yaml
+ENTRYPOINT ["python", "vcenter-exporter.py" ]
