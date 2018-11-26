@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import division
 # python interface to vmware performance metrics
 from pyVmomi import vim, vmodl
 # prometheus export functionality
@@ -63,6 +64,11 @@ class VcenterExporter():
         self.host_properties =[
             "summary.config.name", "config.product.version",
             "config.product.build"
+        ]
+        self.esxi_properties =[
+            "summary.config.name", "summary.quickStats.overallCpuUsage",
+            "summary.quickStats.overallMemoryUsage", "summary.hardware.memorySize",
+            "summary.hardware.cpuMhz", "summary.hardware.numCpuCores",
         ]
 
         # exporter type to function dictionary:  Call appropriate functions for each exporter type
@@ -219,7 +225,7 @@ class VcenterExporter():
                                                          'version', 'build', 'region'])
         self.gauge['vcenter_vcenter_api_session_info'] = Gauge('vcenter_vcenter_api_session_info',
                                                                'vcenter_vcenter_api_session_info',
-                                                               ['session_key', 'hostname', 'userName', 
+                                                               ['session_key', 'hostname', 'userName',
                                                                 'ipAddress', 'userAgent'])
 
         self.gauge['vcenter_vcenter_api_active_count'] = Gauge('vcenter_vcenter_api_active_count',
@@ -242,7 +248,32 @@ class VcenterExporter():
         pass
 
     def setup_infra_esx(self):
-        pass
+        logging.debug('ESXi setup')
+        # for metric in self.esxi_properties:
+        #     if metric == 'summary.config.name':
+        #         continue
+        #     vc_gauge = 'vcenter_' + metric.replace('.', '_')
+        #     self.gauge[vc_gauge] = Gauge(vc_gauge, vc_gauge, [
+        #         'vcenter', 'hostname'
+        #     ])
+        self.gauge['vcenter_esx_overallCpuUsage'] = Gauge('vcenter_esx_overallCpuUsage',
+                                                    'vcenter_esx_overallCpuUsage',
+                                                    ['vcenter', 'hostname'])
+        self.gauge['vcenter_esx_overallMemoryUsage'] = Gauge('vcenter_esx_overallMemoryUsage',
+                                                    'vcenter_esx_overallMemoryUsage',
+                                                    ['vcenter', 'hostname'])
+        self.gauge['vcenter_esx_overallMemoryUsagePct'] = Gauge('vcenter_esx_overallMemoryUsagePct',
+                                                    'vcenter_esx_overallMemoryUsagePct',
+                                                    ['vcenter', 'hostname'])
+        self.gauge['vcenter_esx_overallCpuUsagePct'] = Gauge('vcenter_esx_overallCpuUsagePct',
+                                                    'vcenter_esx_overallCpuUsagePct',
+                                                    ['vcenter', 'hostname'])
+        self.view_ref = self.si.content.viewManager.CreateContainerView(
+                    container=self.container,
+                    type=[vim.HostSystem],
+                    recursive=True
+                )
+
 
     def get_cust_vm_metrics(self):
 
@@ -511,7 +542,7 @@ class VcenterExporter():
                                 'callsPerInterval': 0,
                                 'callsLastInterval': session.callCount}
                 self.sessions_dict[session.key] = dict_entry
-        
+
 
         # Cleanup ended sessions
         session_keys_current = [x.key for x in current_sessions]
@@ -525,9 +556,9 @@ class VcenterExporter():
         for key in remove_keys:
             try:
                 remove_data = self.sessions_dict.pop(key)
-                self.gauge['vcenter_vcenter_api_session_info'].remove(key[0:8], 
+                self.gauge['vcenter_vcenter_api_session_info'].remove(key[0:8],
                     self.configs['main']['host'],
-                    remove_data['userName'], 
+                    remove_data['userName'],
                     remove_data['ipAddress'],
                     remove_data['userAgent']
                 )
@@ -537,20 +568,43 @@ class VcenterExporter():
         logging.debug('processing api session information')
         for session in self.sessions_dict:
             self.gauge['vcenter_vcenter_api_session_info'].labels(session[0:8],
-                        self.configs['main']['vcenter_host'], 
-                        self.sessions_dict[session]['userName'], 
+                        self.configs['main']['vcenter_host'],
+                        self.sessions_dict[session]['userName'],
                         self.sessions_dict[session]['ipAddress'],
                         self.sessions_dict[session]['userAgent']).set(self.sessions_dict[session]['callsPerInterval'])
 
         self.gauge['vcenter_vcenter_api_active_count'].labels(self.configs['main']['vcenter_host']).set(
             len(current_sessions)
-        )  
+        )
 
     def get_vc_health_metrics(self):
         pass
 
     def get_infra_esx_metrics(self):
-        pass
+        logging.debug('getting esxi metrics')
+        try:
+            vcenter = self.configs['main']['vcenter_host'].split('.')[0]
+        except:
+            vcenter = self.configs['main']['vcenter_host']
+        data = collect_properties(self.si, self.view_ref, vim.HostSystem, self.esxi_properties, True)
+        try:
+            for item in data:
+                # for metric in self.esxi_properties:
+                #     if metric == 'summary.config.name':
+                #         continue
+                #     self.gauge['vcenter_' + metric.replace('.', '_')].labels(vcenter,
+                #                    item['summary.config.name'],).set(item[metric])
+                self.gauge['vcenter_esx_overallCpuUsage'].labels(vcenter, item['summary.config.name']).set(item['summary.quickStats.overallCpuUsage'])
+                self.gauge['vcenter_esx_overallCpuUsagePct'].labels(vcenter, item['summary.config.name']).set((item['summary.quickStats.overallCpuUsage'] / (item['summary.hardware.numCpuCores'] * item['summary.hardware.cpuMhz']))*100)
+                self.gauge['vcenter_esx_overallMemoryUsage'].labels(vcenter, item['summary.config.name']).set(item['summary.quickStats.overallMemoryUsage'])
+                self.gauge['vcenter_esx_overallMemoryUsagePct'].labels(vcenter, item['summary.config.name']).set(item['summary.quickStats.overallMemoryUsage'] / (item['summary.hardware.memorySize'] / 1024 / 1024) * 100)
+                self.metric_count += 1
+
+        except KeyError as e:
+            logging.debug("property not defined: " + str(e))
+
+        except Exception as e:
+            logging.info("couldn't get perf data: " + str(e))
 
     def collect_metrics(self):
 
